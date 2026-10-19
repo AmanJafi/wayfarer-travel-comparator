@@ -155,8 +155,9 @@ function App() {
         const timeout = window.setTimeout(() => controller.abort(), 45000);
 
         try {
-            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-            const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/search`, {
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
+                || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
+            const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/search`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 signal: controller.signal,

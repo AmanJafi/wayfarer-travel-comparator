@@ -51,7 +51,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite (normally `http://127.0.0.1:5173`). The frontend defaults to the local backend. To use another backend, create `frontend/.env.local` with:
+Open the local URL printed by Vite (normally `http://127.0.0.1:5173`). The frontend defaults to the local backend. To use a different local backend, create `frontend/.env.local` with:
 
 ```dotenv
 VITE_API_BASE_URL=https://your-backend.example.com
@@ -67,18 +67,6 @@ cd ../frontend
 npm ci
 npm run build
 ```
-
-## deploy on Vercel
-
-Deploy the frontend and backend as two Vercel projects connected to the same GitHub repository:
-
-1. Create the backend project and set its **Root Directory** to `backend`. Vercel detects the FastAPI app in `main.py` and installs `backend/requirements.txt`.
-2. After its first deployment, copy the backend's public HTTPS URL.
-3. Create the frontend project from the same repository and set its **Root Directory** to `frontend`. Use the Vite defaults: build command `npm run build`, output directory `dist`.
-4. In the frontend project's environment variables, set `VITE_API_BASE_URL` to the backend HTTPS origin (no trailing slash), then redeploy the frontend.
-5. In the backend project's environment variables, set `FRONTEND_ORIGINS` to the frontend's exact origin, such as `https://your-app.vercel.app`. Add any other approved frontend origins as a comma-separated list.
-
-Redeploy after changing project environment variables. For Vercel preview domains, add their frontend origin to the backend's `FRONTEND_ORIGINS` value when needed.
 
 ## data and limitations
 

@@ -39,11 +39,14 @@ class SearchRequest(BaseModel):
 
 
 @app.get("/")
+@app.get("/api")
+@app.get("/api/")
 def home():
     return {"message": "Travel Comparator API is running"}
 
 
 @app.post("/search")
+@app.post("/api/search")
 def search(request: SearchRequest):
     # Run the available train and flight scrapers
     train_journeys, train_status = scrape_train_with_status(
