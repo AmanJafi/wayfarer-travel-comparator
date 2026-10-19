@@ -1,4 +1,5 @@
 from datetime import date
+from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import Literal
 
@@ -48,13 +49,16 @@ def home():
 @app.post("/search")
 @app.post("/api/search")
 def search(request: SearchRequest):
-    # Run the available train and flight scrapers
-    train_journeys, train_status = scrape_train_with_status(
-        request.origin, request.destination, request.travel_date
-    )
-    flight_journeys, flight_status = scrape_flight_with_status(
-        request.origin, request.destination, request.travel_date
-    )
+    # check both sources at once so one slow site does not delay the other
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        train_search = executor.submit(
+            scrape_train_with_status, request.origin, request.destination, request.travel_date
+        )
+        flight_search = executor.submit(
+            scrape_flight_with_status, request.origin, request.destination, request.travel_date
+        )
+        train_journeys, train_status = train_search.result()
+        flight_journeys, flight_status = flight_search.result()
 
     all_journeys: list[Journey] = train_journeys + flight_journeys
 

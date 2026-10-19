@@ -11,7 +11,7 @@ Architecture:
 import math
 import re
 from datetime import date
-from urllib.parse import quote
+from urllib.parse import urlencode
 
 import httpx
 from bs4 import BeautifulSoup
@@ -242,7 +242,12 @@ def scrape_flight_with_status(origin: str, destination: str, travel_date: date) 
     date_str = travel_date.strftime("%Y-%m-%d")
 
     query = f"flights from {query_origin} to {query_dest} on {date_str} oneway"
-    url = f"https://www.google.com/travel/flights?q={quote(query)}"
+    url = "https://www.google.com/travel/flights?" + urlencode({
+        "q": query,
+        "hl": "en",
+        "gl": "IN",
+        "curr": "INR",
+    })
 
     try:
         resp = httpx.get(url, headers=DEFAULT_HEADERS, timeout=12, follow_redirects=True)
@@ -254,61 +259,71 @@ def scrape_flight_with_status(origin: str, destination: str, travel_date: date) 
         return [], f"network error: {type(e).__name__}"
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    flight_cards = [
-        el.get("aria-label")
-        for el in soup.find_all(attrs={"aria-label": True})
-        if "From " in el.get("aria-label", "") and "Indian rupees" in el.get("aria-label", "")
-    ]
-
     journeys: list[Journey] = []
     seen = set()
 
-    for card in flight_cards:
-        price_m = re.search(r"From\s+([\d,]+)\s+Indian rupees", card)
-        airline_m = re.search(r"with\s+([^.]+)\.", card)
-        dep_m = re.search(r"Leaves\s+.*?at\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?)", card)
-        arr_m = re.search(r"arrives\s+.*?at\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?)", card)
-        dur_m = re.search(r"Total duration\s+(\d+)\s*hr?\s*(\d+)?\s*m(?:in)?", card)
-        stop_m = re.search(r"(Nonstop|\d+\s+stop)", card, re.I)
-
-        airline = airline_m.group(1).strip() if airline_m else "Domestic Airline"
-        fare = float(price_m.group(1).replace(",", "")) if price_m else 0.0
-        dep_time = dep_m.group(1).strip() if dep_m else None
-        arr_time = arr_m.group(1).strip() if arr_m else None
-
-        dur_mins = 0
-        if dur_m:
-            dur_mins = int(dur_m.group(1)) * 60 + int(dur_m.group(2) or 0)
-
-        transfers = 0
-        if stop_m and "nonstop" not in stop_m.group(1).lower():
-            digits = re.search(r"\d+", stop_m.group(1))
-            transfers = int(digits.group()) if digits else 1
-
-        if fare <= 0 or dur_mins <= 0:
+    card_labels = (
+        el.get("aria-label", "")
+        for el in soup.find_all(attrs={"aria-label": True})
+    )
+    for card in card_labels:
+        journey = _parse_google_flight_card(card, url)
+        if not journey:
             continue
-
+        airline = journey.provider
+        dep_time = journey.departure_time
+        fare = journey.price
         key = (airline, dep_time, fare)
         if key in seen:
             continue
         seen.add(key)
-
-        journeys.append(
-            Journey(
-                mode="Flight",
-                provider=airline,
-                price=fare,
-                duration_minutes=dur_mins,
-                transfers=transfers,
-                departure_time=dep_time,
-                arrival_time=arr_time,
-                source_url=url,
-            )
-        )
+        journeys.append(journey)
 
     if journeys:
         return journeys, f"ok; {len(journeys)} live flights found via Google Flights"
     return [], f"no direct flights found for {src['name']} → {dst['name']} on {travel_date}"
+
+
+def _parse_google_flight_card(label: str, source_url: str) -> Journey | None:
+    # extract fare, airline, times, duration, and stops from one labeled flight card
+    price_match = re.search(r"From\s+([\d,]+)\s+Indian rupees", label, re.I)
+    if not price_match:
+        price_match = re.search(r"(?:From\s+)?(?:₹|INR)\s*([\d,]+)", label, re.I)
+    airline_match = re.search(r"with\s+([^.]+)\.", label, re.I)
+    departure_match = re.search(
+        r"(?:Leaves|Departs)\s+.*?at\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?)", label, re.I
+    )
+    arrival_match = re.search(
+        r"arrives\s+.*?at\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?)", label, re.I
+    )
+    duration_match = re.search(
+        r"Total duration\s+(\d+)\s*hr?\s*(\d+)?\s*m(?:in)?", label, re.I
+    )
+    stops_match = re.search(r"(Nonstop|Non-stop|\d+\s+stops?)", label, re.I)
+
+    if not price_match or not duration_match or not airline_match:
+        return None
+
+    fare = float(price_match.group(1).replace(",", ""))
+    duration = int(duration_match.group(1)) * 60 + int(duration_match.group(2) or 0)
+    if fare <= 0 or duration <= 0:
+        return None
+
+    transfers = 0
+    if stops_match and "non" not in stops_match.group(1).lower():
+        count = re.search(r"\d+", stops_match.group(1))
+        transfers = int(count.group()) if count else 1
+
+    return Journey(
+        mode="Flight",
+        provider=airline_match.group(1).strip(),
+        price=fare,
+        duration_minutes=duration,
+        transfers=transfers,
+        departure_time=departure_match.group(1).strip() if departure_match else None,
+        arrival_time=arrival_match.group(1).strip() if arrival_match else None,
+        source_url=source_url,
+    )
 
 
 def scrape_flight_options(origin: str, destination: str, travel_date: date) -> list[Journey]:
