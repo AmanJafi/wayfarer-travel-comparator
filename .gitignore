@@ -1,0 +1,35 @@
+# local secrets and settings
+.env
+.env.*
+!.env.example
+*.local
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+backend/venv/
+
+# javascript
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# deployment and editor files
+.vercel/
+backend/.vercel/
+frontend/.vercel/
+.DS_Store
+.vscode/
+.idea/
+
+# local scratch files
+backend/debug.txt
+backend/input.txt
+backend/output.txt
+backend/time.txt
+frontend/src/debug.txt
+frontend/src/input.txt
+frontend/src/output.txt
