@@ -8,6 +8,7 @@ from models import Journey
 
 class SearchModesTests(unittest.TestCase):
     def test_search_only_returns_train_and_flight_sources(self):
+        # replace network scrapers so this checks the api logic only
         train = Journey(
             mode="Train", provider="Example Rail", price=500,
             duration_minutes=180, transfers=0,
@@ -29,6 +30,7 @@ class SearchModesTests(unittest.TestCase):
         ])
 
     def test_vercel_api_path_reaches_search_endpoint(self):
+        # test the deployed route shape without reaching the real websites
         train = Journey(
             mode="Train", provider="Example Rail", price=500,
             duration_minutes=180, transfers=0,

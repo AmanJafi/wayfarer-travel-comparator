@@ -30,6 +30,7 @@ SCRAPER_SETTINGS = {
     },
 }
 
+
 def _build_search_url(template: str, origin: str, destination: str, travel_date: date) -> str:
     # replace search values inside the configured source url
     values = {
@@ -72,6 +73,7 @@ def _read_transfers(value: str) -> int:
     digits = "".join(character for character in value if character.isdigit())
     if digits:
         return int(digits)
+    # unknown transfer text also becomes zero in this simple helper
     return 0 if "non-stop" in value.lower() or "direct" in value.lower() else 0
 
 
@@ -97,6 +99,7 @@ def _scrape_results(mode: str, origin: str, destination: str, travel_date: date)
     except httpx.HTTPError:
         return []
 
+    # read only cards matching the selectors configured for this source
     soup = BeautifulSoup(response.text, "html.parser")
     cards = soup.select(os.getenv(settings["card"], "[data-journey]"))
     journeys = []
@@ -106,6 +109,7 @@ def _scrape_results(mode: str, origin: str, destination: str, travel_date: date)
         duration = _read_duration(_text(card, os.getenv(settings["duration"], "")))
         transfers = _read_transfers(_text(card, os.getenv(settings["transfers"], "")))
         if price and duration:
+            # only add a result when the two key numeric fields were parsed
             journeys.append(
                 Journey(
                     mode=mode.title(),

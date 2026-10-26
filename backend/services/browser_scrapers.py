@@ -1,12 +1,4 @@
-"""
-browser_scrapers.py — Reliable travel data providers for Indian routes.
-
-Architecture:
-- Trains: Directly scrapes live scheduled Indian Railway trains via eRail.in
-  (clean, fast, pre-rendered server-side HTML, accurate running times and class fares).
-- Flights: Scrapes live Google Flights pricing, airlines, schedules, and duration
-  via Google Travel web responses.
-"""
+"""read train timetable and flight result pages, then normalize their listings."""
 
 import math
 import re
@@ -112,7 +104,7 @@ def _resolve_city(city: str) -> dict:
     if cleaned in CITY_REGISTRY:
         return CITY_REGISTRY[cleaned]
 
-    # Clean punctuation and check partial matches
+    # clean punctuation and check partial matches for familiar aliases
     simple = re.sub(r"[^a-z0-9]", "", cleaned)
     for key, val in CITY_REGISTRY.items():
         if key in simple or simple in key:
@@ -148,7 +140,7 @@ def scrape_train_with_status(origin: str, destination: str, travel_date: date) -
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # Extract class fare table (Adult fare for Sleeper / 3A / 2S)
+    # try to read the source's class fare table before building train cards
     classes = ["GN", "3E", "2S", "SL", "CC", "3A", "2A", "1A"]
     adult_match = re.search(r"Adult\s*(?:&#8377;|₹)\s*([\s\S]*?)<tr>", resp.text)
     fare_map: dict[str, float] = {}
@@ -156,7 +148,7 @@ def scrape_train_with_status(origin: str, destination: str, travel_date: date) -
         nums = [float(x) for x in re.findall(r"<td>(\d+)", adult_match.group(1))]
         fare_map = dict(zip(classes, nums))
 
-    # Standard fallback prices for Indian trains if route table isn't present
+    # these fallback amounts are estimates, not verified fares for this trip
     default_sleeper = fare_map.get("SL", 190.0) if fare_map.get("SL", 0) > 0 else 240.0
     default_3a = fare_map.get("3A", 500.0) if fare_map.get("3A", 0) > 0 else 650.0
 
@@ -177,21 +169,21 @@ def scrape_train_with_status(origin: str, destination: str, travel_date: date) -
         dur_span = parent.select_one("span.Hr")
         dur_text = dur_span.get_text(strip=True) if dur_span else ""
 
-        # Parse duration like '05.27 hr' or '11.30 hr'
+        # convert the source's hour.minute display into total minutes
         dur_match = re.search(r"(\d+)\.(\d+)\s*hr", dur_text)
         if dur_match:
             dur_mins = int(dur_match.group(1)) * 60 + int(dur_match.group(2))
         else:
             dur_mins = 0
 
-        # Extract departure and arrival times (HH:MM format)
+        # use the first two clock values in the row as departure and arrival
         row = span.find_parent("tr")
         row_text = row.get_text(" ") if row else ""
         times = re.findall(r"\b([0-2]?\d:[0-5]\d)\b", row_text)
         dep = times[0] if len(times) > 0 else None
         arr = times[1] if len(times) > 1 else None
 
-        # Price logic: premium trains (Vande Bharat / Shatabdi / Rajdhani) vs Mail/Express
+        # pick the class estimate based on the train name when no route fare exists
         full_title = f"{num} {name}".strip()
         is_premium = any(k in name.upper() for k in ["VANDE", "SHATABDI", "RAJDHANI", "TEJAS"])
         price = default_3a if is_premium else default_sleeper
@@ -231,7 +223,7 @@ def scrape_flight_with_status(origin: str, destination: str, travel_date: date) 
     src = _resolve_city(origin)
     dst = _resolve_city(destination)
 
-    # If destination has no known airport, flight is unavailable
+    # without airport codes the flight search may not point to a real airport
     if not src.get("iata") and not dst.get("iata"):
         return [], f"no commercial airport configured for {origin} or {destination}"
     if not dst.get("iata") and dst["name"] == "Thrissur":
@@ -262,6 +254,7 @@ def scrape_flight_with_status(origin: str, destination: str, travel_date: date) 
     journeys: list[Journey] = []
     seen = set()
 
+    # google exposes flight details in accessible labels; parse those as cards
     card_labels = (
         el.get("aria-label", "")
         for el in soup.find_all(attrs={"aria-label": True})
@@ -301,6 +294,7 @@ def _parse_google_flight_card(label: str, source_url: str) -> Journey | None:
     )
     stops_match = re.search(r"(Nonstop|Non-stop|\d+\s+stops?)", label, re.I)
 
+    # skip incomplete labels rather than showing a partly guessed flight
     if not price_match or not duration_match or not airline_match:
         return None
 

@@ -33,6 +33,7 @@ app.add_middleware(
 
 
 class SearchRequest(BaseModel):
+    # fastapi checks these fields and the allowed sort names before searching
     origin: str
     destination: str
     travel_date: date
@@ -62,6 +63,7 @@ def search(request: SearchRequest):
 
     all_journeys: list[Journey] = train_journeys + flight_journeys
 
+    # sort the combined list once, after both source checks finish
     if request.sort_by == "price":
         all_journeys = sort_by_price(all_journeys)
     elif request.sort_by == "duration":
@@ -69,6 +71,7 @@ def search(request: SearchRequest):
     else:
         all_journeys = sort_by_transfers(all_journeys)
 
+    # include each source status so an empty result has some explanation
     return {
         "origin": request.origin,
         "destination": request.destination,
