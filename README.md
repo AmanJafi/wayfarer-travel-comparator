@@ -24,7 +24,6 @@ frontend/
   src/                       React + TypeScript interface
   package.json               frontend scripts and dependencies
 SCRAPERS.md                  scraper behavior and limitations
-SCRAPER_PLAN.md              current source scope and quality checks
 ```
 
 ## Run locally
@@ -72,4 +71,4 @@ npm run build
 
 This project reads public website pages, not provider APIs. Website markup, availability, route naming, and anti-bot protections can change; a live search may return no results when a source cannot be read. Source pages are linked where available. Prices and schedules should be checked with the provider before booking. The app does not bypass logins or CAPTCHAs and does not guarantee fare availability.
 
-See [SCRAPERS.md](SCRAPERS.md) for scraper details and [SCRAPER_PLAN.md](SCRAPER_PLAN.md) for current scope and validation notes.
+See [SCRAPERS.md](SCRAPERS.md) for scraper behavior and limitations.
